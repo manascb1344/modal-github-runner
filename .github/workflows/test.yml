@@ -1,0 +1,13 @@
+name: Test Modal Runner
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-modal-runner:
+    runs-on: [self-hosted, modal]
+    steps:
+      - name: Hello World
+        run: |
+          echo "Hello from Modal Sandbox!"
+          uname -a
