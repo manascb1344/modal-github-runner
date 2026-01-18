@@ -5,3 +5,4 @@ __pycache__/
 .modal/
 monitoring_logs.txt
 load_test_logs.txt
+docs-internal/
