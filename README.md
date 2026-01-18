@@ -11,7 +11,7 @@ A high-performance, ephemeral self-hosted GitHub Actions runner powered by [**Mo
 - **⚡ Ephemeral:** Every job runs in a fresh, hardware-isolated Modal Sandbox, ensuring a clean state and preventing side effects between runs.
 - **💰 Zero Idle Cost:** No long-running servers or "warm" instances. You only pay for the exact seconds your runner is executing jobs.
 - **🛡️ JIT Security:** Utilizes GitHub's Just-In-Time runner registration. Runners are created on-demand and automatically cleaned up by GitHub after a single use.
-- **📈 Horizontal Scaling:** Modal's infrastructure allows you to scale to hundreds of concurrent runners instantly to meet demand.
+- **📈 Horizontal Scaling:** Modal's serverless infrastructure allows you to scale to hundreds of concurrent runners instantly. Each job gets its own dedicated resources without queueing delays.
 
 ## 🏗️ Architecture
 
