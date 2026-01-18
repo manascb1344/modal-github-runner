@@ -17,6 +17,24 @@ A high-performance, ephemeral self-hosted GitHub Actions runner powered by [**Mo
 
 The runner follows a reactive, event-driven flow:
 
+```mermaid
+sequenceDiagram
+    participant GH as GitHub Actions
+    participant WE as Modal Web Endpoint
+    participant GA as GitHub API
+    participant MS as Modal Sandbox
+    
+    GH->>WE: 1. workflow_job (queued) Webhook
+    Note over WE: Verify Signature (HMAC-SHA256)
+    WE->>GA: 2. Request JIT Config (generate-jitconfig)
+    GA-->>WE: 3. Return JIT Config String
+    WE->>MS: 4. modal.Sandbox.create(image, JIT_CONFIG)
+    Note over MS: 5. Execute run.sh (as root in /tmp)
+    MS->>GH: 6. Connect & Execute Job
+    GH-->>MS: 7. Job Finished
+    MS->>MS: 8. Exit & Terminate Sandbox
+```
+
 1.  **Workflow Queued:** A GitHub Action workflow is triggered and a job enters the `queued` state.
 2.  **Webhook Trigger:** GitHub sends a `workflow_job` webhook to the Modal web endpoint.
 3.  **JIT Handshake:** The Modal app validates the request and calls the GitHub API to generate a JIT (Just-In-Time) runner configuration.
