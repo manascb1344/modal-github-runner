@@ -43,6 +43,11 @@ This guide outlines the steps to deploy this project using Modal.
     runs-on: [self-hosted, modal]
     ```
 
+### ⚠️ Limitations
+
+*   **Docker-in-Docker:** Standard GitHub "Container Actions" (actions that run inside a Docker container) are not supported by default within Modal Sandboxes.
+*   **Wiping State:** Every job runs in a fresh sandbox. Files saved outside the repository workspace will be lost after the job completes.
+
 ### How it Works
 
 Every time a job is queued, Modal will spawn an ephemeral sandbox that runs the job and then exits. This ensures a clean and isolated environment for each job execution. The webhook is secured using HMAC-SHA256 signature verification.

@@ -4,6 +4,7 @@ import hmac
 import hashlib
 import logging
 import httpx
+import json
 from fastapi import Request, HTTPException
 
 # Configure logging
@@ -12,8 +13,6 @@ logger = logging.getLogger("modal-github-runner")
 
 # Constants
 RUNNER_VERSION = "2.311.0"
-RUNNER_GROUP_ID = 1
-RUNNER_LABELS = ["self-hosted", "modal"]
 TIMEOUT_SECONDS = 3600
 
 # Canonical runner image definition
@@ -37,8 +36,8 @@ async def verify_signature(request: Request):
     """Verify GitHub webhook signature using HMAC-SHA256."""
     webhook_secret = os.environ.get("WEBHOOK_SECRET")
     if not webhook_secret:
-        logger.warning("WEBHOOK_SECRET not set, skipping verification (unsafe!)")
-        return
+        logger.error("WEBHOOK_SECRET not set. Security verification failed.")
+        raise HTTPException(status_code=500, detail="Server configuration error: WEBHOOK_SECRET missing")
 
     signature = request.headers.get("X-Hub-Signature-256")
     if not signature:
@@ -75,6 +74,14 @@ async def github_webhook(request: Request):
         logger.error("Missing repository URL in payload")
         raise HTTPException(status_code=400, detail="Missing repository URL")
 
+    # Fetch configuration from environment with defaults
+    runner_group_id = int(os.environ.get("RUNNER_GROUP_ID", 1))
+    runner_labels_str = os.environ.get("RUNNER_LABELS", '["self-hosted", "modal"]')
+    try:
+        runner_labels = json.loads(runner_labels_str)
+    except Exception:
+        runner_labels = ["self-hosted", "modal"]
+
     headers = {
         "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
         "Accept": "application/vnd.github+json",
@@ -82,8 +89,8 @@ async def github_webhook(request: Request):
     
     data = {
         "name": f"modal-runner-{job_id}",
-        "runner_group_id": RUNNER_GROUP_ID,
-        "labels": RUNNER_LABELS,
+        "runner_group_id": runner_group_id,
+        "labels": runner_labels,
         "work_directory": "_work",
     }
     
@@ -108,11 +115,9 @@ async def github_webhook(request: Request):
     logger.info(f"Spawning sandbox for job {job_id}...")
     
     try:
-        # Simple bash command running as root with the mandatory flag
-        # We cd into a fresh temp dir for each job to avoid any state issues
+        # Optimized command: Run directly from image directory to avoid copy overhead
         cmd = (
-            "mkdir -p /tmp/runner && cp -r /actions-runner/* /tmp/runner/ && "
-            "cd /tmp/runner && export RUNNER_ALLOW_RUNASROOT=1 && ./run.sh --jitconfig $GHA_JIT_CONFIG"
+            "cd /actions-runner && export RUNNER_ALLOW_RUNASROOT=1 && ./run.sh --jitconfig $GHA_JIT_CONFIG"
         )
         
         modal.Sandbox.create(
