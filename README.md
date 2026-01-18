@@ -4,7 +4,7 @@
 [![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-Runner-2088FF?style=flat-square&logo=github-actions&logoColor=white)](https://github.com/features/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 
-A high-performance, ephemeral self-hosted GitHub Actions runner powered by **Modal**. Achieve zero idle costs and instant horizontal scaling with Just-In-Time (JIT) security.
+A high-performance, ephemeral self-hosted GitHub Actions runner powered by [**Modal**](https://modal.com). Achieve zero idle costs and instant horizontal scaling with Just-In-Time (JIT) security.
 
 ## 🚀 Key Features
 
