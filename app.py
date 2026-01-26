@@ -222,11 +222,11 @@ async def github_webhook(request: Request):
         logger.error(f"Failed to parse JSON payload: {type(e).__name__}")
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
-    # Only spawn sandboxes for jobs that GitHub has started (in_progress)
-    # This naturally respects the workflow's max-parallel setting
-    if payload.get("action") != "in_progress":
+    # Only spawn sandboxes for jobs that are queued
+    # GitHub's max-parallel setting is enforced by the job queue
+    if payload.get("action") != "queued":
         logger.debug(
-            f"Ignoring action '{payload.get('action')}' - only processing in_progress jobs"
+            f"Ignoring action '{payload.get('action')}' - only processing queued jobs"
         )
         return {"status": "ignored"}
 
