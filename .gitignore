@@ -6,3 +6,4 @@ __pycache__/
 monitoring_logs.txt
 load_test_logs.txt
 docs-internal/
+actions-runner/
