@@ -47,7 +47,7 @@ This guide outlines the steps to deploy this project using Modal.
     *   Replace `your_webhook_secret_here` with your random string.
     *   Replace `owner/repo1,owner/repo2` with your allowed repositories (or omit to allow all).
 
-    **Optional Configuration:**
+**Optional Configuration:**
     ```bash
     # Additional optional settings
     modal secret create github-secret \
@@ -55,8 +55,7 @@ This guide outlines the steps to deploy this project using Modal.
       WEBHOOK_SECRET=your_webhook_secret_here \
       ALLOWED_REPOS="owner/repo1,owner/repo2" \
       RUNNER_VERSION="2.311.0" \
-      RUNNER_GROUP_ID="1" \
-      RUNNER_LABELS='["self-hosted", "modal"]'
+      RUNNER_GROUP_ID="1"
     ```
 
 5.  **Deploy the app:**
@@ -72,10 +71,31 @@ This guide outlines the steps to deploy this project using Modal.
     *   **Events**: Select `Let me select individual events` and check `Workflow jobs`.
 
 7.  **Update your GitHub Actions workflow:**
-    *   Ensure the `runs-on` field includes `modal` and `self-hosted`.
+
+    > ⚠️ **IMPORTANT**: Your workflow MUST include the `modal` label in the `runs-on` field. Jobs without the `modal` label will be **silently ignored**.
+
+    Ensure the `runs-on` field includes both `modal` and `self-hosted`:
 
     ```yaml
-    runs-on: [self-hosted, modal]
+    jobs:
+      build:
+        runs-on: [self-hosted, modal]
+        steps:
+          - uses: actions/checkout@v4
+          - run: echo "This job will run on Modal"
+    ```
+
+    For **parallel jobs** or matrix strategies, use unique labels to ensure 1:1 binding:
+
+    ```yaml
+    jobs:
+      test:
+        runs-on: [self-hosted, modal, "job-${{ github.run_id }}-${{ strategy.job-index }}"]
+        strategy:
+          matrix:
+            job: [1, 2, 3]
+        steps:
+          - run: echo "Job ${{ matrix.job }}"
     ```
 
 ### ⚠️ Security Considerations
@@ -103,5 +123,4 @@ Every time a job is queued, Modal will spawn an ephemeral sandbox that runs the 
 | `ALLOWED_REPOS` | No | (all) | Comma-separated allowlist of `owner/repo` |
 | `RUNNER_VERSION` | No | `2.311.0` | GitHub Actions runner version |
 | `RUNNER_GROUP_ID` | No | `1` | Runner group ID |
-| `RUNNER_LABELS` | No | `["self-hosted", "modal"]` | JSON array of runner labels |
 | `GITHUB_ENTERPRISE_DOMAIN` | No | - | Custom domain for GitHub Enterprise |

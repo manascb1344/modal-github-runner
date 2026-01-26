@@ -41,6 +41,33 @@ sequenceDiagram
 4.  **Sandbox Spawning:** A Modal Sandbox is provisioned immediately with the pre-configured runner image.
 5.  **Execution & Cleanup:** The runner connects to GitHub, executes the specific job, and the Sandbox is terminated immediately upon completion.
 
+## ⚠️ IMPORTANT: Workflow Label Requirement
+
+**All workflows using this runner MUST include the `modal` label.**
+
+Jobs without the `modal` label will be **silently ignored** and will not execute on the Modal runner.
+
+```yaml
+jobs:
+  build:
+    runs-on: [self-hosted, modal]  # ✅ CORRECT - modal label is present
+    steps:
+      - run: echo "This job will run on Modal"
+```
+
+For matrix jobs or parallel execution, use unique labels to ensure 1:1 binding:
+
+```yaml
+jobs:
+  test:
+    runs-on: [self-hosted, modal, "job-${{ github.run_id }}-${{ strategy.job-index }}"]
+    strategy:
+      matrix:
+        job: [1, 2, 3]
+    steps:
+      - run: echo "Job ${{ matrix.job }}"
+```
+
 ## 🏁 Quick Start
 
 Setting up your own Modal runner takes only a few minutes.
