@@ -1,0 +1,17 @@
+name: Test Max Parallel
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: [self-hosted, modal]
+    strategy:
+      max-parallel: 2
+      matrix:
+        job: [1, 2, 3, 4, 5]
+    steps:
+      - run: |
+          echo "=== Job ${{ matrix.job }} starting at $(date) ==="
+          sleep 30
+          echo "=== Job ${{ matrix.job }} done at $(date) ==="
