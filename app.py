@@ -225,25 +225,28 @@ async def github_webhook(request: Request):
     # Only spawn sandboxes for jobs that are queued
     # GitHub's max-parallel setting is enforced by the job queue
     if payload.get("action") != "queued":
-        # Handle job completion/cancellation - terminate sandbox by tag lookup
+        # Handle job cancellation - terminate sandbox by tag lookup
+        # This works correctly because we use job-specific labels (job-{job_id})
+        # ensuring 1:1 binding between sandbox and job
         if payload.get("action") == "completed":
             workflow_job = payload.get("workflow_job", {})
             job_id = str(workflow_job.get("id", "unknown"))
             conclusion = workflow_job.get("conclusion", "")
 
-            # Find sandbox by job_id tag and terminate if still running
-            for sb in modal.Sandbox.list(app_id=app.app_id, tags={"job_id": job_id}):
-                if sb.poll() is None:  # Still running
-                    logger.info(
-                        f"Terminating sandbox for job {job_id} (conclusion: {conclusion})"
-                    )
-                    try:
-                        sb.terminate()
-                    except Exception as e:
-                        logger.error(
-                            f"Failed to terminate sandbox for job {job_id}: {type(e).__name__}"
-                        )
-            return {"status": "terminated", "job_id": job_id}
+            # Only terminate on cancellation - normal completions exit naturally
+            if conclusion == "cancelled":
+                for sb in modal.Sandbox.list(
+                    app_id=app.app_id, tags={"job_id": job_id}
+                ):
+                    if sb.poll() is None:  # Still running
+                        logger.info(f"Terminating sandbox for cancelled job {job_id}")
+                        try:
+                            sb.terminate()
+                        except Exception as e:
+                            logger.error(
+                                f"Failed to terminate sandbox for job {job_id}: {type(e).__name__}"
+                            )
+                return {"status": "terminated", "job_id": job_id}
 
         logger.debug(
             f"Ignoring action '{payload.get('action')}' - only processing queued jobs"
@@ -293,11 +296,11 @@ async def github_webhook(request: Request):
 
     # Fetch configuration from environment with defaults
     runner_group_id = int(os.environ.get("RUNNER_GROUP_ID", 1))
-    runner_labels_str = os.environ.get("RUNNER_LABELS", '["self-hosted", "modal"]')
-    try:
-        runner_labels = json.loads(runner_labels_str)
-    except Exception:
-        runner_labels = ["self-hosted", "modal"]
+
+    # Use labels from the webhook directly - workflow defines unique labels
+    # Workflow should use: runs-on: [self-hosted, modal, job-${{ github.run_id }}-${{ strategy.job-index }}]
+    # This ensures 1:1 binding between runner and job
+    runner_labels = job_labels if job_labels else ["self-hosted", "modal"]
 
     headers = {
         "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
@@ -311,7 +314,9 @@ async def github_webhook(request: Request):
         "work_directory": "_work",
     }
 
-    logger.info(f"Requesting JIT config for job {job_id} from {repo_full_name}...")
+    logger.info(
+        f"Requesting JIT config for job {job_id} from {repo_full_name} with labels {runner_labels}"
+    )
 
     async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_SECONDS) as client:
         try:
@@ -346,6 +351,7 @@ async def github_webhook(request: Request):
         # JIT config is base64-encoded by GitHub and used directly by the runner
         # Modal's sandbox isolation provides security boundary
         # JIT tokens are single-use and expire after job completion
+        # Runner exits naturally after completing its single job
         cmd = "cd /actions-runner && export RUNNER_ALLOW_RUNASROOT=1 && ./run.sh --jitconfig $GHA_JIT_CONFIG"
 
         sandbox = modal.Sandbox.create(
@@ -358,7 +364,8 @@ async def github_webhook(request: Request):
             env={"GHA_JIT_CONFIG": jit_config},
         )
 
-        # Tag the sandbox with job_id for later termination
+        # Tag sandbox for cancellation handling
+        # Works correctly because job-specific labels ensure 1:1 binding
         sandbox.set_tags({"job_id": str(job_id)})
 
     except Exception as e:

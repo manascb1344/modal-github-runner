@@ -5,7 +5,9 @@ on:
 
 jobs:
   test:
-    runs-on: [self-hosted, modal]
+    # Unique label per matrix job ensures 1:1 binding with runner
+    # run_id is unique per workflow run, job-index is unique per matrix entry
+    runs-on: [self-hosted, modal, "job-${{ github.run_id }}-${{ strategy.job-index }}"]
     strategy:
       max-parallel: 2
       matrix:
