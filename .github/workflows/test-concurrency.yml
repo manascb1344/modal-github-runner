@@ -9,7 +9,7 @@ jobs:
     # run_id is unique per workflow run, job-index is unique per matrix entry
     runs-on: [self-hosted, modal, "job-${{ github.run_id }}-${{ strategy.job-index }}"]
     strategy:
-      max-parallel: 2
+      max-parallel: 4
       matrix:
         job: [1, 2, 3, 4, 5]
     steps:
