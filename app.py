@@ -225,6 +225,26 @@ async def github_webhook(request: Request):
     # Only spawn sandboxes for jobs that are queued
     # GitHub's max-parallel setting is enforced by the job queue
     if payload.get("action") != "queued":
+        # Handle job completion/cancellation - terminate sandbox by tag lookup
+        if payload.get("action") == "completed":
+            workflow_job = payload.get("workflow_job", {})
+            job_id = str(workflow_job.get("id", "unknown"))
+            conclusion = workflow_job.get("conclusion", "")
+
+            # Find sandbox by job_id tag and terminate if still running
+            for sb in modal.Sandbox.list(app_id=app.app_id, tags={"job_id": job_id}):
+                if sb.poll() is None:  # Still running
+                    logger.info(
+                        f"Terminating sandbox for job {job_id} (conclusion: {conclusion})"
+                    )
+                    try:
+                        sb.terminate()
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to terminate sandbox for job {job_id}: {type(e).__name__}"
+                        )
+            return {"status": "terminated", "job_id": job_id}
+
         logger.debug(
             f"Ignoring action '{payload.get('action')}' - only processing queued jobs"
         )
@@ -328,7 +348,7 @@ async def github_webhook(request: Request):
         # JIT tokens are single-use and expire after job completion
         cmd = "cd /actions-runner && export RUNNER_ALLOW_RUNASROOT=1 && ./run.sh --jitconfig $GHA_JIT_CONFIG"
 
-        modal.Sandbox.create(
+        sandbox = modal.Sandbox.create(
             "bash",
             "-c",
             cmd,
@@ -337,6 +357,10 @@ async def github_webhook(request: Request):
             timeout=TIMEOUT_SECONDS,
             env={"GHA_JIT_CONFIG": jit_config},
         )
+
+        # Tag the sandbox with job_id for later termination
+        sandbox.set_tags({"job_id": str(job_id)})
+
     except Exception as e:
         logger.error(f"Failed to create sandbox for job {job_id}: {type(e).__name__}")
         raise HTTPException(status_code=500, detail="Failed to spawn runner sandbox")
