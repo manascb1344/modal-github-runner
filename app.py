@@ -8,6 +8,7 @@ import json
 import time
 import re
 import yaml
+import asyncio
 from urllib.parse import urlparse
 from collections import deque
 from dataclasses import dataclass, field
@@ -93,6 +94,9 @@ _run_configs: dict[str, RunConfig] = {}
 
 # Active jobs (keyed by job_id for cancellation lookup)
 _active_jobs: dict[str, ActiveJob] = {}
+
+# Initialization lock for run configs to prevent race conditions
+_run_config_lock = asyncio.Lock()
 
 # Stale run cleanup threshold (24 hours)
 RUN_STALE_THRESHOLD_SECONDS = 86400
@@ -556,19 +560,21 @@ async def github_webhook(request: Request):
     _processed_jobs[str(job_id)] = current_time
 
     # Get or create run config for this workflow run
-    if run_id not in _run_configs:
-        # Fetch max-parallel from workflow YAML
-        max_parallel = await fetch_workflow_max_parallel(
-            repo_url, workflow_name, os.environ["GITHUB_TOKEN"]
-        )
-        _run_configs[run_id] = RunConfig(
-            max_parallel=max_parallel,
-            workflow_name=workflow_name,
-        )
-        logger.info(
-            f"Created run config for {repo_full_name}/{workflow_name} "
-            f"(run_id={run_id}) with max_parallel={max_parallel}"
-        )
+    # Use lock to prevent race conditions when multiple webhooks arrive simultaneously
+    async with _run_config_lock:
+        if run_id not in _run_configs:
+            # Fetch max-parallel from workflow YAML
+            max_parallel = await fetch_workflow_max_parallel(
+                repo_url, workflow_name, os.environ["GITHUB_TOKEN"]
+            )
+            _run_configs[run_id] = RunConfig(
+                max_parallel=max_parallel,
+                workflow_name=workflow_name,
+            )
+            logger.info(
+                f"Created run config for {repo_full_name}/{workflow_name} "
+                f"(run_id={run_id}) with max_parallel={max_parallel}"
+            )
 
     run_config = _run_configs[run_id]
     queue_position = len(run_config.queue) + run_config.active_count + 1
